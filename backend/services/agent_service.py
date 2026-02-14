@@ -175,10 +175,10 @@ class AgentService:
 
     async def audit_response(self, query: str, response: str) -> AuditResult:
         """
-        Audit a worker response using Google Gemini for risk assessment.
+        Audit a worker response using comprehensive keyword-based risk assessment.
         
-        TEMPORARY: Using simple keyword-based auditing due to Gemini API issues.
-        This will be replaced with actual Gemini auditing once API access is restored.
+        This evaluates queries for violence, illegal activities, harmful content,
+        and other risk factors.
         """
         # Validate input
         if not query or not query.strip():
@@ -186,9 +186,8 @@ class AgentService:
         if not response or not response.strip():
             raise ValueError("Response cannot be empty")
         
-        logger.info("Using keyword-based auditing (Gemini API unavailable)")
+        logger.info("Using comprehensive keyword-based auditing")
         
-        # Simple keyword-based risk assessment
         query_lower = query.lower()
         response_lower = response.lower()
         
@@ -198,28 +197,107 @@ class AgentService:
         toxic_content_detected = False
         details = []
         
-        # Check for high-risk keywords
-        high_risk_keywords = ['hack', 'password', 'crack', 'exploit', 'malware', 'virus', 'illegal']
+        # CRITICAL RISK - Violence, harm, illegal activities (8-10 points)
+        critical_keywords = [
+            'kill', 'murder', 'suicide', 'bomb', 'weapon', 'gun', 'shoot',
+            'stab', 'poison', 'hurt', 'harm', 'attack', 'assault', 'abuse',
+            'torture', 'kidnap', 'rape', 'molest', 'terrorist', 'explosion'
+        ]
+        for keyword in critical_keywords:
+            if keyword in query_lower:
+                risk_score += 8
+                toxic_content_detected = True
+                details.append(f"CRITICAL: Violence/harm keyword detected: '{keyword}'")
+                break  # Only count once for critical
+        
+        # HIGH RISK - Illegal activities, hacking, theft (6-8 points)
+        high_risk_keywords = [
+            'hack', 'crack', 'steal', 'rob', 'theft', 'fraud', 'scam',
+            'exploit', 'malware', 'virus', 'ransomware', 'phishing',
+            'illegal', 'crime', 'criminal', 'break into', 'bypass security',
+            'password crack', 'credit card fraud', 'identity theft'
+        ]
         for keyword in high_risk_keywords:
             if keyword in query_lower:
-                risk_score += 3
+                risk_score += 6
                 toxic_content_detected = True
-                details.append(f"High-risk keyword detected: '{keyword}'")
+                details.append(f"HIGH RISK: Illegal activity keyword: '{keyword}'")
+                break
         
-        # Check for PII patterns
-        pii_keywords = ['email', 'phone', 'address', 'ssn', 'credit card', 'personal']
+        # MEDIUM RISK - Drugs, weapons, dangerous substances (4-6 points)
+        medium_risk_keywords = [
+            'drug', 'cocaine', 'heroin', 'meth', 'marijuana', 'weed',
+            'explosive', 'ammunition', 'firearm', 'knife', 'blade',
+            'chemical weapon', 'poison gas', 'dangerous substance'
+        ]
+        for keyword in medium_risk_keywords:
+            if keyword in query_lower:
+                risk_score += 5
+                toxic_content_detected = True
+                details.append(f"MEDIUM RISK: Dangerous substance/weapon: '{keyword}'")
+                break
+        
+        # MODERATE RISK - Sensitive topics (3-4 points)
+        moderate_risk_keywords = [
+            'medical advice', 'diagnosis', 'treatment', 'medication',
+            'legal advice', 'lawsuit', 'contract', 'financial advice',
+            'investment', 'stock tip', 'gambling', 'bet'
+        ]
+        for keyword in moderate_risk_keywords:
+            if keyword in query_lower:
+                risk_score += 3
+                details.append(f"MODERATE RISK: Sensitive topic: '{keyword}'")
+                break
+        
+        # PII Detection (2-3 points)
+        pii_keywords = [
+            'social security', 'ssn', 'credit card', 'bank account',
+            'password', 'pin code', 'driver license', 'passport number',
+            'phone number', 'email address', 'home address', 'date of birth'
+        ]
         for keyword in pii_keywords:
             if keyword in query_lower or keyword in response_lower:
                 risk_score += 2
                 pii_detected = True
-                details.append(f"Potential PII reference: '{keyword}'")
+                details.append(f"PII RISK: Potential personal information: '{keyword}'")
+                break
         
-        # Check for medical/legal advice
-        sensitive_topics = ['medical', 'legal', 'financial advice', 'diagnosis', 'treatment']
-        for topic in sensitive_topics:
-            if topic in query_lower:
-                risk_score += 1
-                details.append(f"Sensitive topic: '{topic}'")
+        # Hate speech and discrimination (5-7 points)
+        hate_keywords = [
+            'racist', 'sexist', 'homophobic', 'transphobic', 'xenophobic',
+            'hate speech', 'discrimination', 'slur', 'bigot', 'nazi',
+            'white supremacy', 'ethnic cleansing'
+        ]
+        for keyword in hate_keywords:
+            if keyword in query_lower:
+                risk_score += 6
+                toxic_content_detected = True
+                details.append(f"HATE SPEECH: Discriminatory content: '{keyword}'")
+                break
+        
+        # Self-harm indicators (7-9 points)
+        self_harm_keywords = [
+            'self harm', 'cut myself', 'end my life', 'want to die',
+            'suicide method', 'overdose', 'self injury'
+        ]
+        for keyword in self_harm_keywords:
+            if keyword in query_lower:
+                risk_score += 8
+                toxic_content_detected = True
+                details.append(f"CRITICAL: Self-harm indicator: '{keyword}'")
+                break
+        
+        # Sexual content (3-5 points)
+        sexual_keywords = [
+            'porn', 'pornography', 'explicit content', 'sexual content',
+            'nude', 'nsfw', 'adult content', 'sex tape'
+        ]
+        for keyword in sexual_keywords:
+            if keyword in query_lower:
+                risk_score += 4
+                toxic_content_detected = True
+                details.append(f"SEXUAL CONTENT: Explicit material: '{keyword}'")
+                break
         
         # Cap risk score at 10
         risk_score = min(risk_score, 10)
@@ -230,7 +308,7 @@ class AgentService:
         
         details_text = " | ".join(details) if details else "Standard query with no detected risks."
         
-        logger.info(f"Keyword-based audit complete - Risk: {risk_score}/10")
+        logger.info(f"Comprehensive audit complete - Risk: {risk_score}/10, Toxic: {toxic_content_detected}, PII: {pii_detected}")
         
         return AuditResult(
             risk_score=risk_score,
