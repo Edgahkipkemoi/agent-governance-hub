@@ -13,6 +13,7 @@ interface AuditLogTableProps {
 
 export function AuditLogTable({ logs }: AuditLogTableProps) {
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const [actionsCompleted, setActionsCompleted] = useState<Set<string>>(new Set());
 
   if (logs.length === 0) {
     return (
@@ -41,6 +42,8 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
 
   const handleAction = (logId: string, action: string) => {
     console.log(`Action taken on log ${logId}: ${action}`);
+    // Mark this log as having an action completed
+    setActionsCompleted(prev => new Set(prev).add(logId));
     // TODO: Implement backend API call to record action
   };
 
@@ -120,13 +123,27 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
               <div className="border-t border-slate-700 bg-slate-900/70">
                 <div className="p-4 space-y-4">
                   {/* Action Buttons */}
-                  <div className="pb-4 border-b border-slate-700">
-                    <ActionButtons 
-                      logId={log.id}
-                      status={log.status}
-                      onAction={(action) => handleAction(log.id, action)}
-                    />
-                  </div>
+                  {!actionsCompleted.has(log.id) && (
+                    <div className="pb-4 border-b border-slate-700">
+                      <ActionButtons 
+                        logId={log.id}
+                        status={log.status}
+                        onAction={(action) => handleAction(log.id, action)}
+                      />
+                    </div>
+                  )}
+
+                  {actionsCompleted.has(log.id) && (
+                    <div className="pb-4 border-b border-slate-700">
+                      <div className="flex items-center gap-2 px-4 py-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                        <div>
+                          <div className="text-sm font-semibold text-green-400">Action Completed</div>
+                          <div className="text-xs text-green-300">Human oversight applied to this log</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Response */}
                   <div>
