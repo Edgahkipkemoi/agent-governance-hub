@@ -78,26 +78,45 @@ export default function DashboardPage() {
           table: 'logs',
         },
         (payload) => {
-          console.log('New log received:', payload);
+          console.log('✅ Real-time update received:', payload);
           setLogs((current) => [payload.new as AuditLog, ...current]);
         }
       )
-      .subscribe((status) => {
-        console.log('Subscription status:', status);
+      .subscribe((status, err) => {
+        console.log('Realtime subscription status:', status, err);
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected');
+          console.log('✅ Successfully subscribed to real-time updates');
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           setConnectionStatus('disconnected');
+          console.error('❌ Realtime connection error:', err);
         }
       });
 
     return () => {
+      console.log('Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
   }, []);
 
   const handleQuerySuccess = () => {
     console.log('Query submitted successfully');
+    // Manually fetch the latest logs as a fallback
+    setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        
+        if (!error && data) {
+          setLogs(data);
+        }
+      } catch (error) {
+        console.error('Error refreshing logs:', error);
+      }
+    }, 1000); // Wait 1 second for the backend to save
   };
 
   return (
