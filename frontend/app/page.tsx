@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase, AuditLog } from '@/lib/supabase';
 import { TestQueryInput } from '@/components/TestQueryInput';
 import { RiskGauge } from '@/components/RiskGauge';
+import { RiskTrendChart } from '@/components/RiskTrendChart';
 import { AuditLogTable } from '@/components/AuditLogTable';
 import { Activity, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 
@@ -209,8 +210,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Risk Gauge */}
-        <RiskGauge averageRisk={averageRisk} totalLogs={logs.length} />
+        {/* Risk Gauge and Trend Chart */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RiskGauge averageRisk={averageRisk} totalLogs={logs.length} />
+          <RiskTrendChart logs={logs} />
+        </div>
 
         {/* Test Query Input */}
         <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
