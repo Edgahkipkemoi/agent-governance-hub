@@ -2,6 +2,8 @@
 
 import { AuditLog } from '@/lib/supabase';
 import { StatusBadge } from './StatusBadge';
+import { RiskTooltip } from './RiskTooltip';
+import { ActionButtons } from './ActionButtons';
 import { Shield, AlertTriangle, CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 
@@ -11,6 +13,7 @@ interface AuditLogTableProps {
 
 export function AuditLogTable({ logs }: AuditLogTableProps) {
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const [actionsCompleted, setActionsCompleted] = useState<Set<string>>(new Set());
 
   if (logs.length === 0) {
     return (
@@ -37,6 +40,13 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
     setExpandedLog(expandedLog === id ? null : id);
   };
 
+  const handleAction = (logId: string, action: string) => {
+    console.log(`Action taken on log ${logId}: ${action}`);
+    // Mark this log as having an action completed
+    setActionsCompleted(prev => new Set(prev).add(logId));
+    // TODO: Implement backend API call to record action
+  };
+
   return (
     <div className="space-y-3">
       {logs.map((log) => {
@@ -60,8 +70,15 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
                     <StatusBadge status={log.status} />
-                    <span className={`text-sm font-mono font-semibold ${riskColor}`}>
+                    <span className={`text-sm font-mono font-semibold ${riskColor} flex items-center gap-1`}>
                       Risk: {log.audit.risk_score}/10
+                      <RiskTooltip 
+                        riskScore={log.audit.risk_score}
+                        details={log.audit.details}
+                        hallucination={log.audit.hallucination_detected}
+                        pii={log.audit.pii_detected}
+                        toxic={log.audit.toxic_content_detected}
+                      />
                     </span>
                     <span className="text-xs text-slate-500 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
@@ -105,6 +122,29 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
             {isExpanded && (
               <div className="border-t border-slate-700 bg-slate-900/70">
                 <div className="p-4 space-y-4">
+                  {/* Action Buttons */}
+                  {!actionsCompleted.has(log.id) && (
+                    <div className="pb-4 border-b border-slate-700">
+                      <ActionButtons 
+                        logId={log.id}
+                        status={log.status}
+                        onAction={(action) => handleAction(log.id, action)}
+                      />
+                    </div>
+                  )}
+
+                  {actionsCompleted.has(log.id) && (
+                    <div className="pb-4 border-b border-slate-700">
+                      <div className="flex items-center gap-2 px-4 py-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                        <div>
+                          <div className="text-sm font-semibold text-green-400">Action Completed</div>
+                          <div className="text-xs text-green-300">Human oversight applied to this log</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Response */}
                   <div>
                     <div className="flex items-center gap-2 mb-2">

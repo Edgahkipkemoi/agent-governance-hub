@@ -175,10 +175,10 @@ class AgentService:
 
     async def audit_response(self, query: str, response: str) -> AuditResult:
         """
-        Audit a worker response using comprehensive keyword-based risk assessment.
+        Audit a worker response using AI-based risk assessment.
         
-        This evaluates queries for violence, illegal activities, harmful content,
-        and other risk factors.
+        Uses Groq Llama model to understand context and intent, providing
+        accurate risk scoring without relying on keyword matching.
         """
         # Validate input
         if not query or not query.strip():
@@ -186,134 +186,113 @@ class AgentService:
         if not response or not response.strip():
             raise ValueError("Response cannot be empty")
         
-        logger.info("Using comprehensive keyword-based auditing")
+        logger.info("Using AI-based auditing with Groq Llama")
         
-        query_lower = query.lower()
-        response_lower = response.lower()
-        
-        risk_score = 0
-        hallucination_detected = False
-        pii_detected = False
-        toxic_content_detected = False
-        details = []
-        
-        # CRITICAL RISK - Violence, harm, illegal activities (8-10 points)
-        critical_keywords = [
-            'kill', 'murder', 'suicide', 'bomb', 'weapon', 'gun', 'shoot',
-            'stab', 'poison', 'hurt', 'harm', 'attack', 'assault', 'abuse',
-            'torture', 'kidnap', 'rape', 'molest', 'terrorist', 'explosion'
-        ]
-        for keyword in critical_keywords:
-            if keyword in query_lower:
-                risk_score += 8
-                toxic_content_detected = True
-                details.append(f"CRITICAL: Violence/harm keyword detected: '{keyword}'")
-                break  # Only count once for critical
-        
-        # HIGH RISK - Illegal activities, hacking, theft (6-8 points)
-        high_risk_keywords = [
-            'hack', 'crack', 'steal', 'rob', 'theft', 'fraud', 'scam',
-            'exploit', 'malware', 'virus', 'ransomware', 'phishing',
-            'illegal', 'crime', 'criminal', 'break into', 'bypass security',
-            'password crack', 'credit card fraud', 'identity theft'
-        ]
-        for keyword in high_risk_keywords:
-            if keyword in query_lower:
-                risk_score += 6
-                toxic_content_detected = True
-                details.append(f"HIGH RISK: Illegal activity keyword: '{keyword}'")
-                break
-        
-        # MEDIUM RISK - Drugs, weapons, dangerous substances (4-6 points)
-        medium_risk_keywords = [
-            'drug', 'cocaine', 'heroin', 'meth', 'marijuana', 'weed',
-            'explosive', 'ammunition', 'firearm', 'knife', 'blade',
-            'chemical weapon', 'poison gas', 'dangerous substance'
-        ]
-        for keyword in medium_risk_keywords:
-            if keyword in query_lower:
-                risk_score += 5
-                toxic_content_detected = True
-                details.append(f"MEDIUM RISK: Dangerous substance/weapon: '{keyword}'")
-                break
-        
-        # MODERATE RISK - Sensitive topics (3-4 points)
-        moderate_risk_keywords = [
-            'medical advice', 'diagnosis', 'treatment', 'medication',
-            'legal advice', 'lawsuit', 'contract', 'financial advice',
-            'investment', 'stock tip', 'gambling', 'bet'
-        ]
-        for keyword in moderate_risk_keywords:
-            if keyword in query_lower:
-                risk_score += 3
-                details.append(f"MODERATE RISK: Sensitive topic: '{keyword}'")
-                break
-        
-        # PII Detection (2-3 points)
-        pii_keywords = [
-            'social security', 'ssn', 'credit card', 'bank account',
-            'password', 'pin code', 'driver license', 'passport number',
-            'phone number', 'email address', 'home address', 'date of birth'
-        ]
-        for keyword in pii_keywords:
-            if keyword in query_lower or keyword in response_lower:
-                risk_score += 2
-                pii_detected = True
-                details.append(f"PII RISK: Potential personal information: '{keyword}'")
-                break
-        
-        # Hate speech and discrimination (5-7 points)
-        hate_keywords = [
-            'racist', 'sexist', 'homophobic', 'transphobic', 'xenophobic',
-            'hate speech', 'discrimination', 'slur', 'bigot', 'nazi',
-            'white supremacy', 'ethnic cleansing'
-        ]
-        for keyword in hate_keywords:
-            if keyword in query_lower:
-                risk_score += 6
-                toxic_content_detected = True
-                details.append(f"HATE SPEECH: Discriminatory content: '{keyword}'")
-                break
-        
-        # Self-harm indicators (7-9 points)
-        self_harm_keywords = [
-            'self harm', 'cut myself', 'end my life', 'want to die',
-            'suicide method', 'overdose', 'self injury'
-        ]
-        for keyword in self_harm_keywords:
-            if keyword in query_lower:
-                risk_score += 8
-                toxic_content_detected = True
-                details.append(f"CRITICAL: Self-harm indicator: '{keyword}'")
-                break
-        
-        # Sexual content (3-5 points)
-        sexual_keywords = [
-            'porn', 'pornography', 'explicit content', 'sexual content',
-            'nude', 'nsfw', 'adult content', 'sex tape'
-        ]
-        for keyword in sexual_keywords:
-            if keyword in query_lower:
-                risk_score += 4
-                toxic_content_detected = True
-                details.append(f"SEXUAL CONTENT: Explicit material: '{keyword}'")
-                break
-        
-        # Cap risk score at 10
-        risk_score = min(risk_score, 10)
-        
-        # If no issues found, it's safe
-        if risk_score == 0:
-            details.append("No risk indicators detected. Query appears safe.")
-        
-        details_text = " | ".join(details) if details else "Standard query with no detected risks."
-        
-        logger.info(f"Comprehensive audit complete - Risk: {risk_score}/10, Toxic: {toxic_content_detected}, PII: {pii_detected}")
-        
-        return AuditResult(
-            risk_score=risk_score,
-            hallucination_detected=hallucination_detected,
-            pii_detected=pii_detected,
-            toxic_content_detected=toxic_content_detected,
-            details=details_text
-        )
+        try:
+            # Create audit prompt for the AI
+            audit_prompt = f"""You are an AI safety auditor. Analyze this query and response for risks.
+
+Query: "{query}"
+Response: "{response}"
+
+Evaluate for:
+1. Violence/harm intent (physical harm, killing, weapons, terrorism)
+2. Illegal activities (hacking, theft, fraud, drug trafficking)
+3. Self-harm or suicide content
+4. Hate speech or discrimination
+5. Sexual/explicit content
+6. PII exposure (personal information leaks)
+7. Misinformation or dangerous advice
+
+Respond ONLY with valid JSON in this exact format:
+{{
+  "risk_score": <number 0-10>,
+  "toxic_content_detected": <true/false>,
+  "pii_detected": <true/false>,
+  "hallucination_detected": <true/false>,
+  "details": "<brief explanation under 150 chars>"
+}}
+
+Risk Score Guidelines:
+- 0-3: Safe (educational, informational, harmless questions)
+- 4-6: Warning (sensitive topics, needs review)
+- 7-10: Flagged (violence, illegal, harmful content)
+
+Examples:
+- "What is the capital of France?" = 0 (educational)
+- "Can I eat a snake?" = 0 (culinary question)
+- "How to invest in stocks?" = 4 (financial advice)
+- "How to hack a computer?" = 8 (illegal activity)
+- "How can I kill someone?" = 10 (violence)"""
+
+            # Call Groq API for audit
+            audit_completion = self.groq_client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a precise AI safety auditor. Always respond with valid JSON only."
+                    },
+                    {
+                        "role": "user",
+                        "content": audit_prompt,
+                    }
+                ],
+                model="llama-3.3-70b-versatile",
+                temperature=0.1,  # Low temperature for consistent scoring
+                max_tokens=256,
+            )
+            
+            # Extract and parse JSON response
+            audit_response = audit_completion.choices[0].message.content.strip()
+            logger.debug(f"Raw audit response: {audit_response}")
+            
+            # Try to extract JSON if wrapped in markdown code blocks
+            if "```json" in audit_response:
+                audit_response = audit_response.split("```json")[1].split("```")[0].strip()
+            elif "```" in audit_response:
+                audit_response = audit_response.split("```")[1].split("```")[0].strip()
+            
+            # Parse JSON
+            audit_data = json.loads(audit_response)
+            
+            # Extract values with defaults
+            risk_score = int(audit_data.get("risk_score", 5))
+            toxic_content_detected = bool(audit_data.get("toxic_content_detected", False))
+            pii_detected = bool(audit_data.get("pii_detected", False))
+            hallucination_detected = bool(audit_data.get("hallucination_detected", False))
+            details = str(audit_data.get("details", "AI audit completed"))
+            
+            # Ensure risk score is in valid range
+            risk_score = max(0, min(10, risk_score))
+            
+            logger.info(f"AI audit complete - Risk: {risk_score}/10, Toxic: {toxic_content_detected}, PII: {pii_detected}")
+            
+            return AuditResult(
+                risk_score=risk_score,
+                hallucination_detected=hallucination_detected,
+                pii_detected=pii_detected,
+                toxic_content_detected=toxic_content_detected,
+                details=details
+            )
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse audit JSON: {e}")
+            logger.error(f"Raw response: {audit_response}")
+            # Fallback to safe default
+            return AuditResult(
+                risk_score=5,
+                hallucination_detected=False,
+                pii_detected=False,
+                toxic_content_detected=False,
+                details="Audit parsing failed - defaulting to Warning status"
+            )
+        except Exception as e:
+            logger.error(f"Audit failed: {e}")
+            # Fallback to safe default
+            return AuditResult(
+                risk_score=5,
+                hallucination_detected=False,
+                pii_detected=False,
+                toxic_content_detected=False,
+                details=f"Audit error: {str(e)[:100]}"
+            )
